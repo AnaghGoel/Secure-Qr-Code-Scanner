@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="TrustScan — Scan QR codes with enhanced security powered by VirusTotal. Detect malicious, suspicious, and phishing URLs instantly." />
+    <meta name="theme-color" content="#0a0a1a" />
+    <title>TrustScan — Secure QR Scanner</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+    <script>
+      // Error catching
+      window.addEventListener('error', function(e) {
+        console.error('Global error handler:', e.error);
+        var errorContainer = document.getElementById('error-container');
+        if (errorContainer) {
+          errorContainer.textContent = 'Error: ' + (e.error ? e.error.message : e.message);
+          errorContainer.style.display = 'block';
+        }
+      });
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <div id="error-container" style="display:none; background-color: #2d0a0a; color: #ff6b6b; padding: 15px; margin: 15px; border-radius: 8px; font-family: Inter, sans-serif;"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
