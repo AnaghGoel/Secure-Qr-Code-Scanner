@@ -165,10 +165,10 @@ const SimpleQrScanner = () => {
         rememberLastUsedCamera: true,
       };
 
-      // Use simple facingMode constraint for better compatibility
-      const constraints = { facingMode: 'environment' };
+      // Use explicitly selected camera ID if available, otherwise fallback to environment facing mode
+      const cameraConfig = (cameras.length > 1 && cameraId) ? cameraId : { facingMode: 'environment' };
       
-      console.log("Starting camera with simple constraints");
+      console.log("Starting camera with config:", cameraConfig);
       
       // Clean up any previous scanning session
       if (scanner.isScanning) {
@@ -176,7 +176,7 @@ const SimpleQrScanner = () => {
       }
       
       scanner.start(
-        constraints,
+        cameraConfig,
         config,
         (decodedText) => {
           if (!mounted) return;
