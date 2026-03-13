@@ -165,10 +165,10 @@ const SimpleQrScanner = () => {
         rememberLastUsedCamera: true,
       };
 
-      // Use explicitly selected camera ID if available, otherwise fallback to environment facing mode
-      const cameraConfig = (cameras.length > 1 && cameraId) ? cameraId : { facingMode: 'environment' };
+      // Use simple facingMode constraint for better compatibility
+      const constraints = { facingMode: 'environment' };
       
-      console.log("Starting camera with config:", cameraConfig);
+      console.log("Starting camera with simple constraints");
       
       // Clean up any previous scanning session
       if (scanner.isScanning) {
@@ -176,21 +176,10 @@ const SimpleQrScanner = () => {
       }
       
       scanner.start(
-        cameraConfig,
+        constraints,
         config,
-        (decodedText) => {
-          if (!mounted) return;
-          console.log("QR Code scanned:", decodedText);
-          
-          // Set the result and check security
-          setScanResult(decodedText);
-          setErrorMessage("");
-          checkUrlSecurity(decodedText);
-        },
-        (error) => {
-          // This is called for processing errors, not for initialization
-          console.debug("QR processing message:", error);
-        }
+        onScanSuccess,
+        onScanFailure
       )
       .then(() => {
         if (!mounted) return;
@@ -234,16 +223,8 @@ const SimpleQrScanner = () => {
       scanner.start(
         cameraConstraints,
         config,
-        (decodedText) => {
-          if (!mounted) return;
-          console.log("QR Code scanned (alt method):", decodedText);
-          setScanResult(decodedText);
-          setErrorMessage("");
-          checkUrlSecurity(decodedText);
-        },
-        (error) => {
-          console.debug("QR processing message (alt):", error);
-        }
+        onScanSuccess,
+        onScanFailure
       )
       .then(() => {
         if (mounted) {
@@ -268,9 +249,26 @@ const SimpleQrScanner = () => {
     }
   };
 
+  // Refs for tracking recent scans to prevent duplicate rapid scans
+  const lastScannedText = useRef("");
+  const lastScannedTime = useRef(0);
+
   const onScanSuccess = (decodedText, decodedResult) => {
     if (!mounted) return;
     
+    // Prevent duplicate scans within 3 seconds
+    const now = Date.now();
+    if (
+      decodedText === lastScannedText.current &&
+      now - lastScannedTime.current < 3000
+    ) {
+      return; // Ignore this scan as it was just processed
+    }
+    
+    // Update tracking variables
+    lastScannedText.current = decodedText;
+    lastScannedTime.current = now;
+
     if (decodedText && decodedText !== scanResult) {
       console.log("Scan success:", decodedText, decodedResult);
       setScanResult(decodedText);
@@ -278,9 +276,6 @@ const SimpleQrScanner = () => {
       
       // If the result is a URL, check its security
       checkUrlSecurity(decodedText);
-      
-      // We don't pause scanning to allow for continuous scanning
-      // This allows the user to scan multiple QR codes sequentially
     }
   };
   
