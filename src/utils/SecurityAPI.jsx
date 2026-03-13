@@ -53,30 +53,8 @@ export const getComprehensiveSecurityReport = async (url) => {
       data = await response.json();
       console.log('SecurityAPI: Response data:', JSON.stringify(data, null, 2));
     } catch (fetchError) {
-      console.warn('SecurityAPI: Failed to reach backend, falling back to local analysis:', fetchError);
-      
-      // Fallback for when backend is unavailable (like static deployment on Vercel)
-      const isHttps = url.startsWith('https://');
-      const hasSuspiciousKeywords = /(free|win|prize|congrat|urgent|verify|account|click)/i.test(url);
-      
-      const score = isHttps && !hasSuspiciousKeywords ? 85 : (!isHttps ? 40 : 60);
-      const status = score >= 80 ? 'safe' : (score >= 50 ? 'suspicious' : 'malicious');
-      
-      data = {
-        url,
-        status,
-        is_safe: status === 'safe',
-        security_score: score,
-        isHttps,
-        timestamp: new Date().toISOString(),
-        stats: {
-          malicious: status === 'malicious' ? 2 : 0,
-          suspicious: status === 'suspicious' ? 3 : 0,
-          harmless: status === 'safe' ? 60 : 10,
-          undetected: 10
-        },
-        note: 'Local analysis fallback (Backend unavailable)'
-      };
+      console.error('SecurityAPI: Failed to reach backend, analysis failed:', fetchError);
+      return createErrorReport('Security analysis failed to reach backend', url);
     }
     
     // Process the response to ensure all required fields are present
