@@ -123,13 +123,13 @@ async function analyzeUrlWithVirusTotal(url) {
     let attempts = 0;
     
     // Poll for analysis completion
-    while (attempts < 8) {
-      await new Promise(resolve => setTimeout(resolve, 3000));
+    while (attempts < 5) {
+      await new Promise(resolve => setTimeout(resolve, 2000));
       analysisResponse = await axios.get(
         `${VT_API_URL}/analyses/${analysisId}`,
         { headers: { 'x-apikey': VT_API_KEY } }
       );
-      
+
       status = analysisResponse.data.data.attributes.status;
       if (status === 'completed') break;
       attempts++;
