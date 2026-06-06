@@ -75,6 +75,10 @@ This application integrates with the VirusTotal API to check the security of sca
 - API keys should be kept confidential and never committed to version control
 - For production use, consider upgrading to VirusTotal's premium API
 
+## 🎥 5-Minute Video Demonstration
+
+[▶️ Watch the Project Demo Video](https://drive.google.com/file/d/1bdAnLweTHEuBD8EpNU1BozdswF4k3zz7/view?usp=sharing)
+
 ## Adding Additional Security Services
 
 You can extend the security checking by integrating other APIs like:
@@ -88,7 +92,3 @@ You can extend the security checking by integrating other APIs like:
    - Register at [PhishTank](https://phishtank.org/)
    - Request an API key
    - Add your API key to the `.env` file: `PHISHTANK_API_KEY=your_key_here`
-
-## License
-
-MIT
