@@ -54,12 +54,6 @@ A secure QR code scanner application that checks URLs for potential security thr
    # Start frontend only
    npm run start:frontend
    ```
-
-## Accessing the Application
-
-- Frontend: http://localhost:5173 (or the port provided by Vite)
-- Backend API: http://localhost:3001/api
-
 ## Security API Integration
 
 This application integrates with the VirusTotal API to check the security of scanned URLs. The security analysis includes:
