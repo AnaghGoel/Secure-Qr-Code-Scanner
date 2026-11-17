@@ -4,6 +4,27 @@ import axios from 'axios';
 const VT_API_KEY = process.env.VT_API_KEY;
 const VT_API_URL = 'https://www.virustotal.com/api/v3';
 
+// In-memory cache for serverless instance (15 min TTL) to stay within free-tier rate limits
+const cache = new Map();
+const CACHE_TTL_MS = 15 * 60 * 1000;
+
+function getCached(key) {
+  const item = cache.get(key);
+  if (item && (Date.now() - item.timestamp < CACHE_TTL_MS)) {
+    return item.data;
+  }
+  cache.delete(key);
+  return null;
+}
+
+function setCached(key, data) {
+  if (cache.size > 100) {
+    const oldestKey = cache.keys().next().value;
+    cache.delete(oldestKey);
+  }
+  cache.set(key, { timestamp: Date.now(), data });
+}
+
 const normalizeUrl = (url) => {
   try {
     let normalized = url.trim();
@@ -34,7 +55,7 @@ async function expandUrl(url) {
         url,
         method,
         maxRedirects: 5,
-        timeout: 5000,
+        timeout: 4000,
         validateStatus: status => status >= 200 && status < 400
       });
       return (
@@ -62,6 +83,20 @@ function calculateSecurityScore(stats) {
   return Math.max(0, Math.min(100, score - (stats.malicious * 25) - (stats.suspicious * 10)));
 }
 
+function determineStatusAndSafety(stats) {
+  const total = stats.malicious + stats.suspicious + stats.harmless + stats.undetected;
+  if (stats.malicious > 0) {
+    return { status: 'malicious', isSafe: false };
+  }
+  if (stats.suspicious > 0) {
+    return { status: 'suspicious', isSafe: false };
+  }
+  if (total === 0 || (stats.harmless === 0 && stats.undetected === 0)) {
+    return { status: 'unknown', isSafe: false };
+  }
+  return { status: 'safe', isSafe: true };
+}
+
 async function analyzeUrlWithVirusTotal(url) {
   url = normalizeUrl(url);
   try {
@@ -71,7 +106,7 @@ async function analyzeUrlWithVirusTotal(url) {
     try {
       const urlReportResponse = await axios.get(
         `${VT_API_URL}/urls/${urlId}`,
-        { headers: { 'x-apikey': VT_API_KEY } }
+        { headers: { 'x-apikey': VT_API_KEY }, timeout: 4000 }
       );
       
       if (urlReportResponse.data?.data) {
@@ -79,14 +114,12 @@ async function analyzeUrlWithVirusTotal(url) {
         const stats = urlReport.attributes.last_analysis_stats;
         const lastAnalysisResults = urlReport.attributes.last_analysis_results;
         
-        let status = 'safe';
-        if (stats.malicious > 0) status = 'malicious';
-        else if (stats.suspicious > 0) status = 'suspicious';
+        const { status, isSafe } = determineStatusAndSafety(stats);
 
         return {
           url,
           status,
-          is_safe: stats.malicious === 0 && stats.suspicious === 0,
+          is_safe: isSafe,
           security_score: calculateSecurityScore(stats),
           stats: {
             malicious: stats.malicious,
@@ -110,7 +143,8 @@ async function analyzeUrlWithVirusTotal(url) {
         headers: {
           'x-apikey': VT_API_KEY,
           'Content-Type': 'application/x-www-form-urlencoded'
-        }
+        },
+        timeout: 4000
       }
     );
 
@@ -119,30 +153,30 @@ async function analyzeUrlWithVirusTotal(url) {
     }
 
     const analysisId = submitResponse.data.data.id;
-    let analysisResponse, status;
+    let analysisResponse, analysisStatus;
     let attempts = 0;
     
-    // Poll for analysis completion
+    // Poll for analysis completion (shortened intervals to remain comfortably below Vercel's timeout)
     while (attempts < 5) {
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await new Promise(resolve => setTimeout(resolve, 1500));
       analysisResponse = await axios.get(
         `${VT_API_URL}/analyses/${analysisId}`,
-        { headers: { 'x-apikey': VT_API_KEY } }
+        { headers: { 'x-apikey': VT_API_KEY }, timeout: 3000 }
       );
 
-      status = analysisResponse.data.data.attributes.status;
-      if (status === 'completed') break;
+      analysisStatus = analysisResponse.data.data.attributes.status;
+      if (analysisStatus === 'completed') break;
       attempts++;
     }
 
-    if (status !== 'completed') {
+    if (analysisStatus !== 'completed') {
       throw new Error('Analysis did not complete in time');
     }
 
     // Get final report
     const urlReportResponse = await axios.get(
       `${VT_API_URL}/urls/${urlId}`,
-      { headers: { 'x-apikey': VT_API_KEY } }
+      { headers: { 'x-apikey': VT_API_KEY }, timeout: 4000 }
     );
 
     if (!urlReportResponse.data?.data) {
@@ -153,14 +187,12 @@ async function analyzeUrlWithVirusTotal(url) {
     const stats = urlReport.attributes.last_analysis_stats;
     const lastAnalysisResults = urlReport.attributes.last_analysis_results;
     
-    status = 'safe';
-    if (stats.malicious > 0) status = 'malicious';
-    else if (stats.suspicious > 0) status = 'suspicious';
+    const { status, isSafe } = determineStatusAndSafety(stats);
 
     return {
       url,
       status,
-      is_safe: stats.malicious === 0 && stats.suspicious === 0,
+      is_safe: isSafe,
       security_score: calculateSecurityScore(stats),
       stats: {
         malicious: stats.malicious,
@@ -179,8 +211,7 @@ async function analyzeUrlWithVirusTotal(url) {
 }
 
 export default async function handler(req, res) {
-  // Set CORS headers
-  res.setHeader('Access-Control-Allow-Credentials', true);
+  // Set CORS headers (Wildcard origin without credentials per W3C specification)
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
   res.setHeader(
@@ -188,7 +219,7 @@ export default async function handler(req, res) {
     'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
   );
 
-  // Handle OPTIONS request for CORS
+  // Handle OPTIONS request for CORS preflight
   if (req.method === 'OPTIONS') {
     res.status(200).end();
     return;
@@ -211,8 +242,14 @@ export default async function handler(req, res) {
   }
 
   const normalizedUrl = normalizeUrl(url);
+
+  // Check cache first to save VirusTotal quota
+  const cachedReport = getCached(normalizedUrl);
+  if (cachedReport) {
+    return res.status(200).json(cachedReport);
+  }
+
   let expandedUrl = normalizedUrl;
-  
   try {
     expandedUrl = await expandUrl(normalizedUrl);
   } catch (e) {
@@ -240,6 +277,12 @@ export default async function handler(req, res) {
       securityReport.status = expandedUrl.startsWith('https://') ? 'safe' : 'suspicious';
     }
     
+    // Cache the report
+    setCached(normalizedUrl, securityReport);
+    if (expandedUrl !== normalizedUrl) {
+      setCached(expandedUrl, securityReport);
+    }
+
     res.status(200).json(securityReport);
   } catch (error) {
     console.error('URL check error:', error.message);

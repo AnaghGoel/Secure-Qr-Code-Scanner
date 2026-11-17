@@ -134,18 +134,12 @@ async function analyzeUrlWithVirusTotal(url) {
         
         console.log('Analysis stats from existing report:', stats);
         
-        // More accurate status determination
-        let status = 'safe';
-        if (stats.malicious > 0) {
-          status = 'malicious';
-        } else if (stats.suspicious > 0) {
-          status = 'suspicious';
-        }
+        const { status, isSafe } = determineStatusAndSafety(stats);
 
         return {
           url,
           status,
-          is_safe: stats.malicious === 0 && stats.suspicious === 0,
+          is_safe: isSafe,
           security_score: calculateSecurityScore(stats),
           stats: {
             malicious: stats.malicious,
@@ -231,18 +225,12 @@ async function analyzeUrlWithVirusTotal(url) {
     
     console.log('Final analysis stats:', stats);
     
-    // More accurate status determination
-    status = 'safe';
-    if (stats.malicious > 0) {
-      status = 'malicious';
-    } else if (stats.suspicious > 0) {
-      status = 'suspicious';
-    }
+    const { status: determinedStatus, isSafe } = determineStatusAndSafety(stats);
 
     return {
       url,
-      status,
-      is_safe: stats.malicious === 0 && stats.suspicious === 0,
+      status: determinedStatus,
+      is_safe: isSafe,
       security_score: calculateSecurityScore(stats),
       stats: {
         malicious: stats.malicious,
@@ -332,6 +320,20 @@ function createMockAnalysis(url, errorMessage) {
     note: 'Simulated results - VirusTotal API unavailable',
     is_simulated: true
   };
+}
+
+function determineStatusAndSafety(stats) {
+  const total = stats.malicious + stats.suspicious + stats.harmless + stats.undetected;
+  if (stats.malicious > 0) {
+    return { status: 'malicious', isSafe: false };
+  }
+  if (stats.suspicious > 0) {
+    return { status: 'suspicious', isSafe: false };
+  }
+  if (total === 0 || (stats.harmless === 0 && stats.undetected === 0)) {
+    return { status: 'unknown', isSafe: false };
+  }
+  return { status: 'safe', isSafe: true };
 }
 
 // Helper function to calculate security score (0-100)

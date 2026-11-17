@@ -41,10 +41,6 @@ const SimpleQrScanner = () => {
     message: "Report suspicious URLs or contact us for support."
   });
   
-  // Note: In a production app, you would use environment variables and a backend proxy
-  // to keep your API key secure. This is just for demonstration purposes.
-  const VT_API_KEY = ""; // Put your API key here
-
   // Track component mount state to prevent state updates after unmount
   useEffect(() => {
     setMounted(true);
